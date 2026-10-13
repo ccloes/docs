@@ -68,7 +68,8 @@ The arguments for the `s3` source are:
 | `**session_args`          | Additional arguments to pass to the [boto3.Session](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/core/session.html) function.                                      | `str` | No       | `{}`          |
 
 
-File types are handled in a consistent manner regardles of the source of the file:
+File types are handled in a consistent manner regardless of the source of the file.
+Suffix lookup is case-insensitive, so `.JSON` and `.SAS7BDAT` use the same codecs as `.json` and `.sas7bdat`.
 
 - **`.csv`** files are supported by default and yield each row of the csv file as a dictionary to the next step in the pipeline.
 - **`.json`** files are supported by default and yield the entire JSON object to the next step in the pipeline.
@@ -76,11 +77,35 @@ File types are handled in a consistent manner regardles of the source of the fil
 - **`.parquet`** files are supported by default and yield each row of the parquet file as a dictionary to the next step in the pipeline.
 - **`.txt`** files are supported by default and yield each line of the text file as a dictionary to the next step in the pipeline. (The key is `line` and the value is the line of text.)
 - **`.yaml`** files are supported by default and yield the entire YAML object to the next step in the pipeline.
+- **`.sas7bdat`** files are supported by default and yield each row as a dictionary keyed by the SAS column name.
 
-Compressed file formats are also supported: 
+#### SAS `sas7bdat` values
 
--  `.gz`: `{File Format Extension}.gz` files are decompressed using `gzip.open` and stripped of the .gz extension and processed in the subsequent extension.
+Each row is a dictionary, the same shape `FileExtractor` produces for CSV. The key is the SAS column name, decoded with the encoding declared in the file, with surrounding spaces removed. A byte in the name that does not fit that encoding is replaced.
+
+| Value | What the pipeline receives |
+| ----- | -------------------------- |
+| Number | A Python `float`, including whole numbers such as `2.0`. A column keeps one type on every row. Cast with a normalizer when the pipeline wants integers. |
+| Missing | `None` |
+| Date or datetime | A Python `datetime` |
+| Text | A string decoded with the encoding declared in the file. A byte that does not fit that encoding is replaced, the rest of the file is still read, and a warning names the columns and the file. An unknown encoding is decoded as latin-1. |
+
+```yaml
+- implementation: nodestream.pipeline.extractors:FileExtractor
+  factory: local
+  arguments:
+    globs:
+      - data/*.sas7bdat
+      - data/*.zip
+```
+
+Compressed file formats and zip archives are also supported:
+
+- `.gz`: `{File Format Extension}.gz` files are decompressed using `gzip.open` and stripped of the .gz extension and processed in the subsequent extension.
 - `.bz2`: `{File Format Extension}.bz2` files are decompressed using `bz2.open` and stripped of the .bz2 extension and processed in the subsequent extension.
+- `.zip`: each member is unpacked one at a time and read by its own suffix, so one archive can mix CSV, JSON, and sas7bdat. A member that cannot be unpacked or parsed is logged and skipped, and later members are still read. Members larger than 2 GB uncompressed are skipped. Directory entries and macOS metadata (`__MACOSX/` and files whose names start with `._`) are ignored.
+
+`.gz` and `.bz2` still wrap the inner format, including sas7bdat (for example `data.sas7bdat.gz`).
 
 
 ### `QueueConnector`
