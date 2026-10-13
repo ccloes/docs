@@ -81,14 +81,14 @@ Suffix lookup is case-insensitive, so `.JSON` and `.SAS7BDAT` use the same codec
 
 #### SAS `sas7bdat` values
 
-Each row is a dictionary, the same shape `FileExtractor` produces for CSV.
+Each row is a dictionary, the same shape `FileExtractor` produces for CSV. The key is the SAS column name, decoded with the encoding declared in the file, with surrounding spaces removed. A byte in the name that does not fit that encoding is replaced.
 
 | Value | What the pipeline receives |
 | ----- | -------------------------- |
 | Number | A Python `float`, including whole numbers such as `2.0`. A column keeps one type on every row. Cast with a normalizer when the pipeline wants integers. |
 | Missing | `None` |
 | Date or datetime | A Python `datetime` |
-| Text | A string decoded with the encoding declared in the file. A byte that does not fit that encoding is replaced, and the rest of the file is still read. An unknown encoding is decoded as latin-1. |
+| Text | A string decoded with the encoding declared in the file. A byte that does not fit that encoding is replaced, the rest of the file is still read, and a warning names the columns and the file. An unknown encoding is decoded as latin-1. |
 
 ```yaml
 - implementation: nodestream.pipeline.extractors:FileExtractor
